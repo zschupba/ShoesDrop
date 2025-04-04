@@ -1,229 +1,333 @@
+import pygame
+import sys
+import math
+import random 
 import socket
 import threading
-import random
+import json
 import time
-import pickle
-import sys
-import struct
 
-# Import Ball and Bucket classes
 from ball import Ball
 from bucket import Bucket
 
-# Server configuration
-HOST = '0.0.0.0'  # Bind to all network interfaces
-PORT = 12345      # Port to listen on
-
-# Game configuration
+#GAME SCREEN
 SCREEN_WIDTH = 600
 SCREEN_HEIGHT = 800
-BUCKET_WIDTH = 50
-BUCKET_HEIGHT = 50
 
-# Game variables
+#COLORS
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+SKYBLUE = (135, 206, 235)
+YELLOW = (255, 255, 0)
+
+#GAME STATES
+START_SCREEN = 0
+PLAYING = 1
+GAME_OVER = 2
+
+#VARIABLES NEEDED BY BOTH THREADS
+current_state = START_SCREEN
+score = 0
+bucketPos = 300
 baseSpeed = 4
 bucketSpeed = baseSpeed
 baseGravity = 0.1
-score = 0
-current_state = 0  # START_SCREEN = 0, PLAYING = 1, GAME_OVER = 2
-game_over = False
 show_speed_message = False
 message_timer = 0
 
-# Create game objects (but don't render them)
-ball_x = random.randrange(0, SCREEN_WIDTH - 50)
-ball_y = 0
-ball_speed = 0
-ball_gravity = baseGravity
+#NETWORKING SETUP
+host = None
+port = 5000
+server_socket = None
+client_connections = []
+lock = threading.Lock() #THREAD SAFETY
 
-bucket_x = (SCREEN_WIDTH - BUCKET_WIDTH) // 2
-bucket_y = SCREEN_HEIGHT - BUCKET_HEIGHT - 10
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
 
-# Set up server socket
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-server_socket.bind((HOST, PORT))
-server_socket.listen(1)
-print(f"Server started on {HOST}:{PORT}")
+def client_handler(conn, addr):
+    global bucketPos, current_state, score
 
-# Client handling variables
-client_socket = None
-client_address = None
-current_movement = None
-restart_requested = False
+    print(f"New connection from {addr}")
 
-def reset_game():
-    global score, bucketSpeed, ball_speed, ball_gravity, ball_x, ball_y, bucket_x, bucket_y, show_speed_message, message_timer, game_over
-    
-    ball_x = random.randrange(0, SCREEN_WIDTH - 50)
-    ball_y = 0
-    ball_speed = 0
-    ball_gravity = baseGravity
-    
-    bucket_x = (SCREEN_WIDTH - BUCKET_WIDTH) // 2
-    bucket_y = SCREEN_HEIGHT - BUCKET_HEIGHT - 10
-    
-    score = 0
-    bucketSpeed = baseSpeed
-    show_speed_message = False
-    message_timer = 0
-    game_over = False
-
-def handle_client_connection(sock):
-    global current_movement, current_state, restart_requested, game_over
-    
-    while True:
-        try:
-            data = sock.recv(1024).decode().strip()
+    try:
+        while True:
+            data = conn.recv(1024).decode()
             if not data:
                 break
                 
-            # Parse client input
-            if data == "LEFT":
-                current_movement = "LEFT"
-            elif data == "RIGHT":
-                current_movement = "RIGHT"
-            elif data == "STOP":
-                current_movement = None
-            elif data == "SPACE":
-                if current_state == 0:  # START_SCREEN
-                    current_state = 1  # PLAYING
-                    reset_game()
-                elif current_state == 2:  # GAME_OVER
-                    restart_requested = True
-        except:
-            break
-    
-    print("Client disconnected")
-    sock.close()
-    global client_socket
-    client_socket = None
+            print(f"From {addr}: {data}")
 
-def accept_clients():
-    global client_socket, client_address
-    
-    while True:
-        print("Waiting for client connection...")
-        sock, addr = server_socket.accept()
-        client_socket = sock
-        client_address = addr
-        print(f"Client connected from {addr}")
-        
-        # Start a new thread to handle client communication
-        client_handler = threading.Thread(target=handle_client_connection, args=(sock,))
-        client_handler.daemon = True
-        client_handler.start()
+            #HANDLE COMMANDS FROM USER
+            with lock:
+                if data == 'a':
+                    bucketPos = min(0, bucketPos - 10)
+                elif data == 'd':
+                    bucketPos = min(SCREEN_WIDTH - 50, bucketPos + 10)
+                elif data == ('space') and (current_state == START_SCREEN or current_state == GAME_OVER):
+                    current_state = PLAYING
+                    score = 0
+                    bucketPos = SCREEN_WIDTH//2
+    except Exception as e:
+        print(f"Error Handling Client {addr}: {e}")
+    finally:
+        with lock:
+            if conn in client_connections:
+                client_connections.remove(conn)
+        conn.close()
+        print(f"Connection Closed: {addr}")
 
-def update_game_state():
-    global ball_x, ball_y, ball_speed, bucket_x, bucket_y, score, current_state, game_over
-    global bucketSpeed, ball_gravity, show_speed_message, message_timer
-    
-    # Only update if in playing state
-    if current_state != 1:  # PLAYING
-        return
-        
-    # Update ball position
-    ball_speed += ball_gravity
-    ball_y += ball_speed
-    
-    # Process client movement
-    if current_movement == "LEFT":
-        bucket_x -= bucketSpeed
-        if bucket_x < 0:
-            bucket_x = 0
-    elif current_movement == "RIGHT":
-        bucket_x += bucketSpeed
-        if bucket_x > SCREEN_WIDTH - BUCKET_WIDTH:
-            bucket_x = SCREEN_WIDTH - BUCKET_WIDTH
-    
-    # Check for collision with bucket
-    if (ball_y + 30 > bucket_y and 
-        ball_y < bucket_y + BUCKET_HEIGHT and
-        ball_x + 50 > bucket_x and
-        ball_x < bucket_x + BUCKET_WIDTH):
-        
-        score += 1
-        difficultyLevel = score // 5
-        bucketSpeed = baseSpeed * (1 + difficultyLevel * 0.25)
-        ball_gravity = baseGravity * (1 + difficultyLevel * 0.4)
-        
-        if score % 5 == 0:
-            show_speed_message = True
-            message_timer = 60
-        
-        # Reset ball
-        ball_x = random.randrange(0, SCREEN_WIDTH - 50)
-        ball_y = 0
-        ball_speed = 0
-    
-    # Check for ball hitting bottom (game over)
-    if ball_y >= SCREEN_HEIGHT:
-        current_state = 2  # GAME_OVER
-        game_over = True
-    
-    # Update message timer
-    if show_speed_message:
-        message_timer -= 1
-        if message_timer <= 0:
-            show_speed_message = False
+def server_thread():
+    global server_socket, host, client_connections
 
-def send_game_state_to_client():
-    if client_socket:
-        # Create game state object
+    host = get_local_ip()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    try:
+        server_socket.bind((host, port))
+        server_socket.listen(5)
+        print(f"Server running on {host}:{port}")
+
+        while True:
+            conn, addr = server_socket.accept()
+            with lock:
+                client_connections.append(conn)
+
+            client_thread = threading.Thread(target=client_handler, args=(conn, addr))
+            client_thread.daemon = True
+            client_thread.start()
+
+    except Exception as e:
+        print(f"Server error: {e}")
+    finally:
+        if server_socket:
+            server_socket.close()
+
+def broadcast_game_state():
+    global client_connections, current_state, score, bucketPos
+
+    with lock:
+        if not client_connections:
+            return
+        
         game_state = {
-            "state": current_state,
-            "ball": {"x": ball_x, "y": ball_y},
-            "bucket": {"x": bucket_x, "y": bucket_y},
-            "score": score,
-            "speed_message": show_speed_message,
-            "client_connected": client_socket is not None
+            'state': current_state,
+            'score': score,
+            'bucket_pos': bucketPos
         }
-        
-        try:
-            # Serialize with pickle
-            data = pickle.dumps(game_state)
-            
-            # Send message size first, then the pickled data
-            message_size = struct.pack("!I", len(data))
-            client_socket.sendall(message_size + data)
-        except:
-            print("Error sending game state to client")
 
-# Start client acceptance thread
-accept_thread = threading.Thread(target=accept_clients)
-accept_thread.daemon = True
-accept_thread.start()
+        data = json.dumps(game_state).encode()
 
-# Main game loop
-game_running = True
-last_update_time = time.time()
+        for conn in client_connections[:]:
+            try:
+                conn.send(data)
+            except:
+                if conn in client_connections:
+                    client_connections.remove(conn)
+                try:
+                    conn.close()
+                except:
+                    pass
 
-try:
-    while game_running:
-        # Check for restart
-        if restart_requested and current_state == 2:  # GAME_OVER
-            current_state = 1  # PLAYING
-            reset_game()
-            restart_requested = False
-        
-        # Update game state
-        update_game_state()
-        
-        # Send updates to client approximately 30 times per second (reduced to help with lag)
-        current_time = time.time()
-        if current_time - last_update_time >= 1/30:
-            send_game_state_to_client()
-            last_update_time = current_time
-        
-        # Small delay to prevent high CPU usage
-        time.sleep(0.01)
+def game_thread():
+    global current_state, score, bucketPos, bucketSpeed, baseGravity, show_speed_message, message_timer
 
-except KeyboardInterrupt:
-    print("Server shutting down...")
+    pygame.init()
+
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Falling Ball Game")
+
+    all_sprites = pygame.sprite.Group()
+    ball = Ball(50, 30)
+    playerBucket = Bucket(BLACK, 50, 50)
+    all_sprites.add(playerBucket, ball)
+
+    font = pygame.font.SysFont(None, 36)
+    title_font = pygame.font.SysFont(None, 72)
+
+    stars = []
+    for _ in range(50):
+        x = random.randint(0, SCREEN_WIDTH)
+        y = random.randint(0, SCREEN_HEIGHT)
+        speed = random.uniform(0.5, 2.0)
+        stars.append([x, y, speed])
+
+    def draw_start_screen():
+        for y in range(SCREEN_HEIGHT):
+            blue_val = int(150 * (y / SCREEN_HEIGHT))
+            color = (30, 50, 150 - blue_val)
+            pygame.draw.line(screen, color, (0, y), (SCREEN_WIDTH, y))
     
-finally:
-    # Clean up
-    if client_socket:
-        client_socket.close()
-    server_socket.close()
-    print("Server stopped.")
+  
+        for star in stars:
+            star[1] += star[2]
+            if star[1] > SCREEN_HEIGHT:
+                star[1] = 0
+                star[0] = random.randint(0, SCREEN_WIDTH)
+            pygame.draw.circle(screen, WHITE, (int(star[0]), int(star[1])), 2)
+    
+   
+        title = title_font.render("BALL DROP", True, YELLOW)
+        screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, SCREEN_HEIGHT//4))
+    
+  
+        current_time = pygame.time.get_ticks()
+        ball_y = SCREEN_HEIGHT//2 + 50 + 30 * math.sin(current_time / 200)
+        pygame.draw.circle(screen, RED, (SCREEN_WIDTH//2, int(ball_y)), 25)
+    
+        pygame.draw.rect(screen, BLACK, (SCREEN_WIDTH//2 - 30, SCREEN_HEIGHT//2 + 120, 60, 40))
+    
+
+        instruction = font.render("Press SPACE to Start", True, WHITE)
+        screen.blit(instruction, (SCREEN_WIDTH//2 - instruction.get_width()//2, SCREEN_HEIGHT*3//4))
+
+        net_info = font.render(f"Server: {host}:{port}", True, WHITE)
+        screen.blit(net_info, (10, SCREEN_HEIGHT - 40))
+
+    def draw_game_over_screen():
+        for y in range(SCREEN_HEIGHT):
+            red_val = int(100 * (y / SCREEN_HEIGHT))
+            color = (150 - red_val, 20, 30)
+            pygame.draw.line(screen, color, (0, y), (SCREEN_WIDTH, y))
+
+        game_over = title_font.render("GAME OVER", True, RED)
+        screen.blit(game_over, (SCREEN_WIDTH//2 - game_over.get_width()//2, SCREEN_HEIGHT//4))
+
+        score_text = font.render(f"Final Score: {score}", True, WHITE)
+        screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, SCREEN_HEIGHT*3//4))
+
+        restart = font.render("Press SPACE to Play Again", True, YELLOW)
+        screen.blit(restart, (SCREEN_WIDTH//2 - restart.get_width()//2, SCREEN_HEIGHT*3//4))
+
+    clock = pygame.time.Clock()
+    game_running = True
+
+    #START SERVER THREAD
+    server = threading.Thread(target=server_thread)
+    server.daemon = True
+    server.start()
+
+    last_broadcast = time.time()
+
+    while game_running:
+        current_time = time.time()
+        if current_time - last_broadcast >= 0.1:
+            broadcast_game_state()
+            last_broadcast = current_time
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game_running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    if current_state == START_SCREEN or current_state == GAME_OVER:
+                        current_state = PLAYING
+                        ball.reset()
+                        playerBucket.resetBucket()
+                        score = 0
+                        bucketSpeed = baseSpeed
+                        ball.gravity = baseGravity
+
+        with lock:
+            playerBucket.rect.x = bucketPos
+
+        if current_state == START_SCREEN:
+            draw_start_screen()
+
+        elif current_state == PLAYING:
+            ball.update()
+
+            if pygame.sprite.collide_rect(ball, playerBucket):
+                with lock:
+                    score += 1
+                difficultyLevel = math.floor(score / 5)
+                bucketSpeed = baseSpeed * (1 + difficultyLevel * 0.25)
+                ball.gravity = baseGravity * (1 + difficultyLevel * 0.4)
+
+                if score % 5 == 0:
+                    show_speed_message = True
+                    message_timer = 60
+
+                ball.reset()
+
+            if ball.rect.bottom >= SCREEN_HEIGHT:
+                current_state = GAME_OVER
+
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT]:
+                with lock:
+                    bucketPos = max(0, bucketPos - bucketSpeed)
+                playerBucket.rect.x = bucketPos
+            if keys[pygame.K_RIGHT]:
+                with lock:
+                    bucketPos = min(SCREEN_WIDTH - playerBucket.rect.width, bucketPos + bucketSpeed)
+                playerBucket.rect.x = bucketPos
+            
+            for y in range(SCREEN_HEIGHT):
+                blue_val = int(155 * (y / SCREEN_HEIGHT))
+                color = (100, 170 - blue_val, 255 - blue_val)
+                pygame.draw.line(screen, color, (0, y), (SCREEN_WIDTH, y))
+            
+            # Draw clouds
+            for i in range(6):
+                cloud_x = (i * 150 + pygame.time.get_ticks() // 20) % (SCREEN_WIDTH + 300) - 150
+                cloud_y = 50 + i * 30
+                for j in range(3):
+                    pygame.draw.circle(screen, (240, 240, 240), 
+                                     (int(cloud_x + j * 20), int(cloud_y)), 25)
+            
+            # Draw sprites
+            screen.blit(ball.image, ball.rect)
+            screen.blit(playerBucket.image, playerBucket.rect)
+            
+            # Draw score
+            scoreText = font.render(f"Score: {score}", True, BLACK)
+            screen.blit(scoreText, (10, 10))
+            
+            # Draw connected clients count
+            with lock:
+                clients_text = font.render(f"Players: {len(client_connections)}", True, BLACK)
+            screen.blit(clients_text, (10, 50))
+            
+            if show_speed_message:
+                speedIncreaseText = font.render("SPEED INCREASE!!!", True, RED)
+                screen.blit(speedIncreaseText, (SCREEN_WIDTH//2 - speedIncreaseText.get_width()//2, SCREEN_HEIGHT//2))
+                message_timer -= 1
+                if message_timer <= 0:
+                    show_speed_message = False
+        
+        elif current_state == GAME_OVER:
+            draw_game_over_screen()
+        
+        pygame.display.flip()
+        clock.tick(60)
+    
+    # Clean up before exit
+    with lock:
+        for conn in client_connections:
+            try:
+                conn.close()
+            except:
+                pass
+        client_connections.clear()
+    
+    if server_socket:
+        server_socket.close()
+    
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    game_thread()
