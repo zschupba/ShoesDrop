@@ -39,22 +39,12 @@ show_speed_message = False
 message_timer = 0
 
 #NETWORKING SETUP
-host = None
+#nic_name = "wlan1"
+host = "10.22.0.47"
 port = 5000
 server_socket = None
 client_connections = []
 lock = threading.Lock() #THREAD SAFETY
-
-def get_local_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    except Exception:
-        ip = '127.0.0.1'
-    finally:
-        s.close()
-    return ip
 
 def client_handler(conn, addr):
     global bucketPos, current_state, score
@@ -91,12 +81,12 @@ def client_handler(conn, addr):
 def server_thread():
     global server_socket, host, client_connections
 
-    host = get_local_ip()
+    
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
-        server_socket.bind((host, port))
+        server_socket.bind(("0.0.0.0", port))
         server_socket.listen(5)
         print(f"Server running on {host}:{port}")
 

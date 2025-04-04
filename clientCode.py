@@ -32,7 +32,7 @@ def client_program():
                 time.sleep(0.1)
             if keyboard.is_pressed('space'):
                 # Space can be used for both starting and restarting
-                client_socket.send('w'.encode())  # Space maps to 'w' for start game
+                client_socket.send('space'.encode())  # Space maps to 'w' for start game
                 time.sleep(0.1)
             
             # Small delay to prevent excessive CPU usage
