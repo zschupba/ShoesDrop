@@ -1,57 +1,59 @@
-import keyboard
+import pygame
 import socket
-import time
 import sys
 
-def client_program():
-    #GET SERVER IP
+def sendCommand(sock, command):
+    try:
+        sock.sendall(command.encode())
+    except Exception as e:
+        print("Error sending command: ", e)
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((300, 200))
+    pygame.display.set_caption("Game Controls - Client")
+
     server_ip = input("Enter server IP address: ")
     port = 5000
-
-    print(f"Trying to connect to server at {server_ip}:{port}")
-
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        client_socket = socket.socket()
-        client_socket.connect((server_ip, port))
-        print("Connected to server!")
-
-        print("Controls: ")
-        print("  'Left Arrow' - Move bucket left")
-        print("  'Right Arrow' - Move bucket right")
-        print("  'Space' - Start/restart game")
-        print("  'q' - Quit")
-        print("\nWaiting for keyboard input...")
-        
-        # Main loop for capturing keyboard input
-        while not keyboard.is_pressed('q'):
-            if keyboard.is_pressed('left'):
-                client_socket.send('a'.encode())  # We still send 'a' to the server
-                time.sleep(0.1)
-            if keyboard.is_pressed('right'):
-                client_socket.send('d'.encode())  # We still send 'd' to the server
-                time.sleep(0.1)
-            if keyboard.is_pressed('space'):
-                # Space can be used for both starting and restarting
-                client_socket.send('space'.encode())  # Space maps to 'w' for start game
-                time.sleep(0.1)
-            
-            # Small delay to prevent excessive CPU usage
-            time.sleep(0.01)
-            
-    except ConnectionRefusedError:
-        print(f"Connection refused. Make sure the server is running at {server_ip}:{port}")
+        sock.connect((server_ip, port))
+        print("Connected to server: ", server_ip, "on port: ", port)
     except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        try:
-            client_socket.close()  # close the connection
-        except:
-            pass
-        print("Connection closed")
+        print("Could not connect to server: ", e)
+        sys.exit()
 
-if __name__ == '__main__':
-    try:
-        client_program()
-    except KeyboardInterrupt:
-        print("\nProgram terminated by user")
-        sys.exit(0)       
+    clock = pygame.time.Clock()
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                break
+        keys = pygame.key.get_pressed()
+        command = None
+
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            command = 'left'
+        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            command = 'right'
+        elif keys[pygame.K_SPACE]:
+            command = 'space'
+            
+        if command is not None:
+            if command != last_command or command in ['left', 'right']:
+                sendCommand(sock, command)
+                last_command = command
+        else:
+            last_command = None  # Reset if no key is pressed            
+
+        pygame.display.flip()
+        clock.tick(60)
+    
+    sock.close()
+    pygame.quit()
+    sys.exit()
+
+
+if __name__ == "__main__":
+    main()
