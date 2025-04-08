@@ -59,14 +59,12 @@ client_command = None
 def network_thread():
     global client_command, current_state, score, bucketSpeed, ball, playerBucket
 
-    host = "10.22.2.222"
+    host = socket.gethostbyname(socket.gethostname())
     try:
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(("0.0.0.0", port))
-        server_socket.listen(1)
-        print("Server enabled on: ", host, "port: ", port)
-        conn, addr = server_socket.accept()
-        print("Connection from: ", addr)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        host = s.getsockname()[0]
+        s.close()
     except Exception:
         pass
 
