@@ -13,7 +13,8 @@ def main():
     screen = pygame.display.set_mode((300, 200))
     pygame.display.set_caption("Game Controls - Client")
 
-    server_ip = input("Enter server IP address: ")
+    #Hardcode the servers IP
+    server_ip = "10.22.2.222"
     port = 5000
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -25,6 +26,8 @@ def main():
 
     clock = pygame.time.Clock()
     running = True
+    last_command = None
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
