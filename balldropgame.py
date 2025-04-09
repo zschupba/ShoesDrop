@@ -44,7 +44,7 @@ message_timer = 0
 score = 0
 
 all_sprites = pygame.sprite.Group()
-ball = Ball(50, 30)  # Create ball
+ball = Ball(75, 50)  # Create ball
 playerBucket = Bucket(BLACK, 50, 50)
 all_sprites.add(playerBucket, ball)
 
