@@ -37,6 +37,10 @@ def main():
             command = 'left'
         elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             command = 'right'
+        elif keys[pygame.K_UP] or keys[pygame.K_w]:
+            command = 'up'
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            command = 'down'
         elif keys[pygame.K_SPACE]:
             command = 'space'
             

@@ -10,23 +10,8 @@ class Ball(pygame.sprite.Sprite):
     def __init__(self, width, height):
         super().__init__()
 
-        # Create a surface for the ball
-        self.image = pygame.Surface([width, height])
-        self.image.fill(WHITE)
-        self.image.set_colorkey(WHITE)
-
-        r = random.randint(200, 255)
-        g = random.randint(0, 155)
-        b = random.randint(0, 100)
-        randomColor = (r, g, b)
-
-        # Draw a circle on the surface
-        radius = min(width, height) // 2
-        center_x = width // 2
-        center_y = height // 2
-
-
-        pygame.draw.circle(self.image, randomColor, (center_x, center_y), radius)
+        self.image = pygame.image.load("zachsCat.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
 
         self.rect = self.image.get_rect()
         
@@ -53,21 +38,9 @@ class Ball(pygame.sprite.Sprite):
             
     def reset(self):
 
-        r = random.randint(200, 255)
-        g = random.randint(0, 155)
-        b = random.randint(0, 100)
-        randomColor = (r, g, b)
+        self.image = pygame.image.load("zachsCat.png").convert_alpha()
 
-        self.image.fill(WHITE)
-        radius = min(self.rect.width, self.rect.height) // 2
-        center_x = self.rect.width // 2
-        center_y = self.rect.height // 2
-
-
-
-        pygame.draw.circle(self.image, randomColor, (center_x, center_y), radius)
-    
-        self.color = randomColor
+        self.image = pygame.transform.scale(self.image, (self.rect.width, self.rect.height))
 
         self.rect.x = random.randint(0, SCREEN_WIDTH - self.rect.width)
         self.rect.y = 20

@@ -44,7 +44,7 @@ message_timer = 0
 score = 0
 
 all_sprites = pygame.sprite.Group()
-ball = Ball(50, 30)  # Create ball
+ball = Ball(75, 50)  # Create ball
 playerBucket = Bucket(BLACK, 50, 50)
 all_sprites.add(playerBucket, ball)
 
@@ -160,6 +160,10 @@ while game_running:
             playerBucket.moveLeft(bucketSpeed)
         if keys[pygame.K_RIGHT]:
             playerBucket.moveRight(bucketSpeed)
+        if keys[pygame.K_UP]:
+            playerBucket.moveUp(bucketSpeed)
+        if keys[pygame.K_DOWN]:
+            playerBucket.moveDown(bucketSpeed)
         
         for y in range(SCREEN_HEIGHT):
             blue_val = int(155 * (y / SCREEN_HEIGHT))

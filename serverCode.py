@@ -173,7 +173,11 @@ while game_running:
             playerBucket.moveLeft(bucketSpeed)
         elif client_command == 'right':
             playerBucket.moveRight(bucketSpeed)
-
+        elif client_command == 'up':
+            playerBucket.moveUp(bucketSpeed)
+        elif client_command == 'down':
+            playerBucket.moveDown(bucketSpeed)
+            
         client_command = None
 
         for y in range(SCREEN_HEIGHT):
