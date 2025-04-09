@@ -38,6 +38,14 @@ class Bucket(pygame.sprite.Sprite):
         if self.rect.x >= 0:
             self.rect.x -= baseSpeed
 
+    def moveUp(self, baseSpeed):
+        if self.rect.y + 30 >= 0:
+            self.rect.y -= baseSpeed
+    
+    def moveDown(self, baseSpeed):
+        if self.rect.y + 30 <= SCREEN_HEIGHT:
+            self.rect.y += baseSpeed
+            
     def resetBucket(self):
         self.rect.x = 290
         self.rect.y = 600

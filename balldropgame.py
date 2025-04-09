@@ -160,6 +160,10 @@ while game_running:
             playerBucket.moveLeft(bucketSpeed)
         if keys[pygame.K_RIGHT]:
             playerBucket.moveRight(bucketSpeed)
+        if keys[pygame.K_UP]:
+            playerBucket.moveUp(bucketSpeed)
+        if keys[pygame.K_DOWN]:
+            playerBucket.moveDown(bucketSpeed)
         
         for y in range(SCREEN_HEIGHT):
             blue_val = int(155 * (y / SCREEN_HEIGHT))
